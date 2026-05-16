@@ -95,11 +95,75 @@ async fn ask_gemini(b64_image: &str) -> Result<String, AppError> {
     let payload = serde_json::json!({
         "contents": [{
             "parts": [
-                { "text": "Extract items from receipt. Return raw JSON without markdown. Schema: { total: f64, items: [{name: str, price: f64, category: str}] }" },
+                { "text": "Extract items, total sum, and the date from the receipt. Assign the correct category based on the provided schema definitions." },
                 { "inline_data": { "mime_type": "image/jpeg", "data": b64_image } }
             ]
         }],
-        "generationConfig": { "responseMimeType": "application/json" }
+        "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": {
+                "type": "OBJECT",
+                "properties": {
+                    "total": { "type": "NUMBER", "description": "Total sum of the receipt" },
+                    "receipt_date": {
+                        "type": "STRING",
+                        "description": "Date of the receipt in YYYY-MM-DD format. If the date is completely missing, unreadable, or not present on the image, ALWAYS return 'UNKNOWN'."
+                    },
+                    "items": {
+                        "type": "ARRAY",
+                        "items": {
+                            "type": "OBJECT",
+                            "properties": {
+                                "name": { "type": "STRING", "description": "Original item name from the receipt" },
+                                "price": { "type": "NUMBER", "description": "Price of the item" },
+                                "category": {
+                                    "type": "STRING",
+                                    "enum": [
+                                        "RENT_MORTGAGE",
+                                        "UTILITIES",
+                                        "GROCERIES",
+                                        "HOUSEHOLD_CHEMS",
+                                        "OBLIGATIONS",
+                                        "RESTAURANTS_CAFES",
+                                        "ENTERTAINMENT",
+                                        "CLOTHING_SHOES",
+                                        "PUBLIC_TRANSPORT",
+                                        "TAXI_CARSHARING",
+                                        "MEDICAL",
+                                        "PERSONAL_CARE",
+                                        "SPORT",
+                                        "EMERGENCY_FUND",
+                                        "INVESTMENTS"
+                                    ],
+                                    "description": "Strict category mapping: \
+                                                    RENT_MORTGAGE: Rent or mortgage. \
+                                                    UTILITIES: Electricity, water, heating, internet, mobile. \
+                                                    GROCERIES: Food bought at a supermarket/grocery store for home (CRITICAL: separate from restaurants!). \
+                                                    HOUSEHOLD_CHEMS: Detergents, toilet paper, sponges, household goods. \
+                                                    OBLIGATIONS: Taxes, insurance, alimony. \
+                                                    RESTAURANTS_CAFES: Food delivery, fast food, coffee to go, bars, cafes. \
+                                                    ENTERTAINMENT: Movies, concerts, parties, video games, paid subscriptions (Netflix, Spotify, etc.). \
+                                                    CLOTHING_SHOES: Shopping for clothes and footwear. \
+                                                    PUBLIC_TRANSPORT: Subways, buses, trains, travel passes. \
+                                                    TAXI_CARSHARING: Taxi rides and carsharing. \
+                                                    MEDICAL: Doctors, pharmacies, medicine, medical tests, dentists. \
+                                                    PERSONAL_CARE: Haircuts, cosmetics, barbershop, manicure. \
+                                                    SPORT: Gym memberships, sports equipment, swimming pool. \
+                                                    EMERGENCY_FUND: Savings, emergency fund transfers. \
+                                                    INVESTMENTS: Stocks, bonds, crypto purchases."
+                                },
+                                "is_junk_food": {
+                                    "type": "BOOLEAN",
+                                    "description": "True if the item is junk food, fast food or snacks (chips, crackers, candy, soda, sweets, pizza, burgers, kebab), regardless of whether it's from GROCERIES or RESTAURANTS_CAFES."
+                                }
+                            },
+                            "required": ["name", "price", "category", "is_junk_food"]
+                        }
+                    }
+                },
+                "required": ["total", "receipt_date", "items"]
+            }
+        }
     });
 
     let res = client.post(&url).json(&payload).send().await?;

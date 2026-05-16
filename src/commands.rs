@@ -59,11 +59,8 @@ pub async fn handle_photo(bot: Bot, dialogue: MyDialogue, msg: Message) -> Handl
 
             let b64_image = BASE64_STANDARD.encode(&buffer);
 
-            let gemini_response = ask_gemini(&b64_image).await;
-
-            match gemini_response {
+            match ask_gemini(&b64_image).await {
                 Ok(json_str) => {
-                    // Here, you must deserialize the `json_str` into your structure
                     bot.send_message(msg.chat.id, format!("Result:\n{}", json_str))
                         .await?;
                 }
@@ -73,11 +70,10 @@ pub async fn handle_photo(bot: Bot, dialogue: MyDialogue, msg: Message) -> Handl
                 }
             }
 
-            // Reset the state back to Start so they can use commands again
+            // Successfully handled the photo, reset state to Start
             dialogue.exit().await?;
         }
     } else {
-        // If they send text instead of a photo while in the ReceivePhoto state:
         bot.send_message(
             msg.chat.id,
             "That's not a photo, dipshit. Send an actual photo.",
@@ -85,15 +81,13 @@ pub async fn handle_photo(bot: Bot, dialogue: MyDialogue, msg: Message) -> Handl
         .await?;
     }
 
-    dialogue.exit().await?;
-
     Ok(())
 }
 
 async fn ask_gemini(b64_image: &str) -> Result<String, AppError> {
     let api_key = std::env::var("GEMINI_API_KEY").expect("Where's the API key, Lebowski?");
     let url = format!(
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={}",
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={}",
         api_key
     );
 

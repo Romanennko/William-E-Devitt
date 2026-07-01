@@ -1,4 +1,5 @@
 use base64::prelude::*;
+use serde::Deserialize;
 use teloxide::dispatching::dialogue::{Dialogue, InMemStorage};
 use teloxide::{net::Download, prelude::*, utils::command::BotCommands};
 
@@ -20,9 +21,44 @@ pub enum Command {
     #[command(description = "display all available commands.")]
     Help,
     #[command(description = "upload a photo.")]
-    Upload,
+    Photo,
     #[command(description = "check expenses")]
     Check,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
+pub enum ReceiptCategory {
+    RentMortgage,
+    Utilities,
+    Groceries,
+    HouseholdChems,
+    Obligations,
+    RestaurantsCafes,
+    Entertainment,
+    ClothingShoes,
+    PublicTransport,
+    TaxiCarsharing,
+    Medical,
+    PersonalCare,
+    Sport,
+    EmergencyFund,
+    Investments,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReceiptItem {
+    pub name: String,
+    pub price: f64,
+    pub category: ReceiptCategory,
+    pub is_junk_food: bool,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ReceiptData {
+    pub total: f64,
+    pub receipt_date: Option<String>,
+    pub items: Vec<ReceiptItem>,
 }
 
 pub async fn answer_command(
@@ -36,7 +72,7 @@ pub async fn answer_command(
             bot.send_message(msg.chat.id, Command::descriptions().to_string())
                 .await?;
         }
-        Command::Upload => {
+        Command::Photo => {
             bot.send_message(msg.chat.id, "Please send a photo to upload.")
                 .await?;
             dialogue.update(State::ReceivePhoto).await?;
@@ -61,11 +97,34 @@ pub async fn handle_photo(bot: Bot, dialogue: MyDialogue, msg: Message) -> Handl
 
             match ask_gemini(&b64_image).await {
                 Ok(json_str) => {
-                    bot.send_message(msg.chat.id, format!("Result:\n{}", json_str))
-                        .await?;
+                    match serde_json::from_str::<ReceiptData>(&json_str) {
+                        Ok(receipt) => {
+                            let junk_total: f64 = receipt
+                                .items
+                                .iter()
+                                .filter(|item| item.is_junk_food)
+                                .map(|item| item.price)
+                                .sum();
+
+                            let msg_text = format!(
+                                "Total amount: {:.2}\n📅 Date: {}\n🍔 Junk food spent: {:.2}",
+                                receipt.total,
+                                receipt.receipt_date.as_deref().unwrap_or("Unknown"),
+                                junk_total
+                            );
+
+                            bot.send_message(msg.chat.id, msg_text).await?;
+
+                            // TODO LOGIC OF STORING DATA IN THE DATABASE
+                        }
+                        Err(e) => {
+                            bot.send_message(msg.chat.id, format!("Error parsing JSON: {}", e))
+                                .await?;
+                        }
+                    }
                 }
                 Err(e) => {
-                    bot.send_message(msg.chat.id, format!("Error: {}", e))
+                    bot.send_message(msg.chat.id, format!("API Error: {}", e))
                         .await?;
                 }
             }

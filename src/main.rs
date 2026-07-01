@@ -1,5 +1,5 @@
 use dotenv::dotenv;
-use teloxide::{dispatching::dialogue::InMemStorage, prelude::*};
+use teloxide::{dispatching::dialogue::InMemStorage, prelude::*, types::UserId};
 
 mod commands;
 
@@ -11,10 +11,18 @@ async fn main() {
     pretty_env_logger::init();
     log::info!("Starting command bot...");
 
+    let allowed_user_id = std::env::var("ALLOWED_USER_ID")
+        .expect("ALLOWED_USER_ID must be set")
+        .parse::<u64>()
+        .expect("ALLOWED_USER_ID must be a valid u64");
+    let allowed_user = UserId(allowed_user_id);
+
     let bot = Bot::from_env();
 
     // 1. Build the routing tree
     let handler = Update::filter_message()
+        // Filter messages to only allow the specified user ID
+        .filter(move |msg: Message| msg.from.as_ref().map(|u| u.id) == Some(allowed_user))
         // Inject dialogue storage into the context
         .enter_dialogue::<Message, InMemStorage<State>, State>()
         .branch(

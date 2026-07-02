@@ -1,7 +1,9 @@
 use dotenv::dotenv;
+use sqlx::sqlite::SqlitePool;
 use teloxide::{dispatching::dialogue::InMemStorage, prelude::*, types::UserId};
 
 mod commands;
+mod db;
 
 use commands::{Command, State, answer_command, handle_photo};
 
@@ -16,6 +18,16 @@ async fn main() {
         .parse::<u64>()
         .expect("ALLOWED_USER_ID must be a valid u64");
     let allowed_user = UserId(allowed_user_id);
+
+    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let pool = SqlitePool::connect(&db_url)
+        .await
+        .expect("Failed to connect to the database");
+
+    sqlx::migrate!()
+        .run(&pool)
+        .await
+        .expect("Failed to run database migrations");
 
     let bot = Bot::from_env();
 
@@ -39,7 +51,7 @@ async fn main() {
     // 2. Build and start the Dispatcher
     Dispatcher::builder(bot, handler)
         // This is where we provide the actual memory storage engine
-        .dependencies(dptree::deps![InMemStorage::<State>::new()])
+        .dependencies(dptree::deps![InMemStorage::<State>::new(), pool])
         .enable_ctrlc_handler()
         .build()
         .dispatch()

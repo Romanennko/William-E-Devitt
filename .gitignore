@@ -11,6 +11,7 @@
 *.sqlite-shm
 *.sqlite-wal
 *.sqlite-journal
+bot_data/
 
 # IDE
 .vscode/

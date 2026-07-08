@@ -321,4 +321,3 @@ pub async fn get_biggest_receipt(
     .fetch_optional(pool)
     .await
 }
-

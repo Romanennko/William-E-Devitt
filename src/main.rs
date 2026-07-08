@@ -4,8 +4,11 @@ use teloxide::{dispatching::dialogue::InMemStorage, prelude::*, types::UserId};
 
 mod commands;
 mod db;
+mod models;
+mod utils;
 
-use commands::{Command, State, answer_command, handle_photo};
+use commands::{Command, answer_command, photo::handle_photo};
+use models::State;
 
 #[tokio::main]
 async fn main() {

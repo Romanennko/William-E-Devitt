@@ -11,3 +11,11 @@ services:
       - DATABASE_URL=sqlite:/app/data/william.db
     volumes:
       - ./bot_data:/app/data
+    networks:
+      - default
+
+networks:
+  default:
+    driver: bridge
+    driver_opts:
+      com.docker.network.driver.mtu: 1400
